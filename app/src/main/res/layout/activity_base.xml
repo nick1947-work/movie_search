@@ -11,6 +11,16 @@
     tools:context=".BaseActivity">
 
 
+    <TextView
+        android:elevation="10dp"
+        android:id="@+id/search_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20dp"
+        android:layout_centerInParent="true"
+        android:text="Tap on the search icon to search movies"/>
+
+
     <SearchView
         android:id="@+id/searchView"
         android:layout_width="match_parent"

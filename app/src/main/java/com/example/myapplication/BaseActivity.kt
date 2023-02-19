@@ -14,9 +14,14 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import android.Manifest
+import android.content.Context
+import android.net.ConnectivityManager
+import android.view.Gravity
 import android.view.View
+import android.widget.TextView
 import android.widget.Toolbar
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -34,16 +39,20 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
     lateinit var moviesRecyclerView: RecyclerView;
     val REQUEST_CODE= 202
     lateinit var searchView: SearchView;
+    lateinit var search_text: TextView;
     lateinit var searchQuery:String  ;
     private lateinit var moviesAdapter: MoviesAdapter
     private  var isLoading : Boolean = false;
     private var currentPage = 1
+    private var backPressedTime: Long = 0
+
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_base)
          searchView = findViewById(R.id.searchView)
+        search_text = findViewById(R.id.search_text)
          moviesRecyclerView = findViewById(R.id.moviesRecyclerView)
 
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
@@ -90,6 +99,10 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
                 }
                 moviesAdapter.addMovies(movies)
                 moviesRecyclerView.visibility = View.VISIBLE
+                search_text?.visibility=View.GONE
+            }else{
+                search_text?.visibility=View.VISIBLE
+
             }
         }
 
@@ -100,17 +113,13 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
 
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String): Boolean {
-                // This method is called when the user submits a search query.
-                // You can use the query to search for movies using the OMDb API.
 
                 if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
-                    // Permission is granted, start your internet-related task
-                 //  search(query)
+
                     viewModel.searchMovies(query,currentPage)
 
 
                 } else {
-                    // Permission is not granted, request the permission
 
                     searchQuery = query
                     ActivityCompat.requestPermissions(this@BaseActivity, arrayOf(Manifest.permission.INTERNET), REQUEST_CODE)
@@ -121,17 +130,20 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
             }
 
             override fun onQueryTextChange(newText: String): Boolean {
-             viewModel.searchMovies(newText,currentPage)
+                if (!isNetworkConnected()) {
+                    val toast = Toast.makeText(applicationContext, "No connection!", Toast.LENGTH_SHORT)
+                    toast.setGravity(Gravity.CENTER, 0, 0)
+                    toast.show()
+                    return false
+                }
+
+                viewModel.searchMovies(newText,currentPage)
                 searchQuery = newText
                 if(newText.length<=0){
                     if( moviesRecyclerView.adapter!=null && moviesAdapter!=null) {
                         moviesAdapter.clearMovies()
                     }
                 }
-                //search(newText)
-
-                // This method is called when the text in the search bar changes.
-                // You can use this to update the list of search results as the user types.
                 return true
             }
         })
@@ -139,6 +151,24 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
 
 
 
+    }
+
+    override fun onBackPressed() {
+        val currentFragment = supportFragmentManager.findFragmentById(R.id.sdc)
+        if(currentFragment is BlankFragment){
+            super.onBackPressed()
+        }else{
+
+        if (backPressedTime + 2000 > System.currentTimeMillis()) {
+            super.onBackPressed()
+        } else {
+                if( moviesRecyclerView.adapter!=null && moviesAdapter!=null) {
+                    moviesAdapter.clearMovies()
+            }
+            Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show()
+        }
+        backPressedTime = System.currentTimeMillis()
+    }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -149,7 +179,6 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
                 var viewModel = ViewModelProvider(this).get(MovieViewModel::class.java)
                 viewModel.searchMovies(searchQuery,currentPage)
             } else {
-                // Permission is not granted, show a message to the user
                 Toast.makeText(this, "Internet permission is required to use this app", Toast.LENGTH_LONG).show()
             }
         }
@@ -165,6 +194,13 @@ class BaseActivity : AppCompatActivity() ,clickadapter {
         transaction.commit()
 
 
+    }
+
+
+    private fun isNetworkConnected(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val networkInfo = connectivityManager.activeNetworkInfo
+        return networkInfo != null && networkInfo.isConnected
     }
 
 }
@@ -190,8 +226,8 @@ class MovieViewModel : ViewModel() {
     private var currentQuery = ""
 
     fun searchMovies(query: String,currentPage: Int) {
-        currentQuery = query
 
+        currentQuery = query
 
         api.searchMovies(APIKEY, currentQuery,"movie", currentPage).enqueue(object : Callback<SearchResults> {
             override fun onResponse(call: Call<SearchResults>, response: Response<SearchResults>) {
@@ -211,6 +247,8 @@ class MovieViewModel : ViewModel() {
             }
         })
     }
+
+
 
 }
 
